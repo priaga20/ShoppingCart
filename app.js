@@ -1,3 +1,10 @@
+const client = contentful.createClient({
+  // This is the space ID. A space is like a project folder in Contentful terms
+  space: YOUR_API_KEY,
+  // This is the access token for this space. Normally you get both ID and the token in the Contentful web app
+  accessToken: YOUR_API_KEY,
+});
+
 //variables
 //using const so that variables cannot be reassigned
 
@@ -19,11 +26,15 @@ let buttonsDom = [];
 class Products {
   async getProducts() {
     try {
+      let contentful = await client.getEntries({
+        content_type: "comfyHouseProducts",
+      });
+
       // Await expressions suspend progress through an async function,
       // yielding control and subsequently resuming progress only when an awaited promise - based asynchronous operation is either fulfilled or rejected.
-      let result = await fetch("products.json");
-      let data = await result.json();
-      let products = data.items;
+      // let result = await fetch("products.json");
+      // let data = await result.json();
+      let products = contentful.items;
       products = products.map((item) => {
         const { title, price } = item.fields;
         const { id } = item.sys;
@@ -53,7 +64,7 @@ class UI {
             />
             <button class="bag-btn" data-id=${product.id}>
               <i class="fas fa-shopping-cart"></i>
-              add to bag
+              add to cart
             </button>
           </div>
           <h3>${product.title}</h3>
@@ -144,6 +155,76 @@ class UI {
     cartOverlay.classList.remove("transparentBcg");
     cartDOM.classList.remove("showCart");
   }
+
+  cartLogic() {
+    //if accessing something within the class then don't use this.func_name..... here it will point to the button and not func of UI class
+    //clearCartBtn.addEventListener('click', this.clearCart);
+
+    //clear cart button
+    clearCartBtn.addEventListener("click", () => {
+      this.clearCart();
+    });
+    //cart functionality
+    cartContent.addEventListener("click", (event) => {
+      if (event.target.classList.contains("remove-item")) {
+        let removeItem = event.target;
+        let id = removeItem.dataset.id;
+        //removing from cart dom
+        cartContent.removeChild(removeItem.parentElement.parentElement);
+        //removing from cart
+        this.removeItem(id);
+      } else if (event.target.classList.contains("fa-chevron-up")) {
+        let addAmout = event.target;
+        let id = addAmout.dataset.id;
+        let tempItem = cart.find((item) => item.id === id);
+        tempItem.amount = tempItem.amount + 1;
+        //also update in local storage so that on refreshing items not gone from cart
+        Storage.saveCart(cart);
+        //update total price also
+        this.setCartValue(cart);
+        addAmout.nextElementSibling.innerText = tempItem.amount;
+      } else if (event.target.classList.contains("fa-chevron-down")) {
+        let lowerAmount = event.target;
+        let id = lowerAmount.dataset.id;
+        let tempItem = cart.find((item) => item.id === id);
+        tempItem.amount = tempItem.amount - 1;
+        if (tempItem.amount > 0) {
+          Storage.saveCart(cart);
+          this.setCartValue(cart);
+          lowerAmount.previousElementSibling.innerText = tempItem.amount;
+        } else {
+          //if amount becomes 0 then remove that item
+          //removing from DOM
+          cartContent.removeChild(lowerAmount.parentElement.parentElement);
+          //removing from cart
+          this.removeItem(id);
+        }
+      }
+    });
+  }
+
+  clearCart() {
+    let cartItems = cart.map((item) => item.id);
+    cartItems.forEach((id) => this.removeItem(id));
+    //removing items from cart dom
+    while (cartContent.children.length > 0) {
+      cartContent.removeChild(cartContent.children[0]);
+    }
+    this.hideCart();
+  }
+
+  removeItem(id) {
+    cart = cart.filter((item) => item.id !== id);
+    this.setCartValue(cart);
+    Storage.saveCart(cart);
+    let button = this.getSingleButton(id);
+    button.disabled = false;
+    button.innerHTML = `<i class="fas fa-shopping-cart"></i>add to cart`;
+  }
+
+  getSingleButton(id) {
+    return buttonsDom.find((button) => button.dataset.id === id);
+  }
 }
 
 //local storage
@@ -183,5 +264,6 @@ document.addEventListener("DOMContentLoaded", () => {
     })
     .then(() => {
       ui.getBagButtons();
+      ui.cartLogic();
     });
 });
